@@ -19,13 +19,8 @@ def fetch_page(url):
     return response
 
 
-def get_comments(book_id):
-    url = f"https://tululu.org/b{book_id}/"
-    response = fetch_page(url)
-
-    soup = BeautifulSoup(response.text, 'lxml')
+def get_comments(soup):
     comments_section = soup.find_all('div', class_='texts')
-
     return [
         comment_div.find('span').text.strip()
         for comment_div in comments_section
@@ -62,43 +57,60 @@ def download_image(url, folder='images'):
     return filepath
 
 
-def get_book_cover_url(book_id):
-    url = f"https://tululu.org/b{book_id}/"
-    response = fetch_page(url)
-
-    soup = BeautifulSoup(response.text, 'lxml')
+def get_book_cover_url(soup):
     img_tag = soup.find('div', class_='bookimage').find('img')
-
     if img_tag and img_tag.get('src'):
-        return urljoin(url, img_tag['src'])
-
+        return urljoin("https://tululu.org", img_tag['src'])
     return None
 
 
-def parse_book_page(book_id):
+def parse_book_page(html_content):
+    soup = BeautifulSoup(html_content, 'lxml')
+
+    title_tag = soup.find('div', id='content').find('h1')
+    genre_tags = soup.find('span', class_='d_book').find_all('a')
+    author_tags = soup.find('div', id='content').find('h1', title='').text
+
+    title = title_tag.text.split(':')[0].strip() if title_tag else "Неизвестный заголовок"
+    genres = [genre.text.strip() for genre in genre_tags] if genre_tags else []
+    author = author_tags.split('::')[-1].strip() if author_tags else "Автор неизвестен"
+
+    book_data = {
+        'title': title,
+        'author': author,
+        'genres': genres,
+        'cover_url': get_book_cover_url(soup),
+        'comments': get_comments(soup)
+    }
+
+    return book_data
+
+
+def collect_book_data(book_id):
     url = f"https://tululu.org/b{book_id}/"
     response = fetch_page(url)
 
-    soup = BeautifulSoup(response.text, 'lxml')
-    title_tag = soup.find('div', id='content').find('h1')
-    genre_tags = soup.find('span', class_='d_book').find_all('a')
+    book_data = parse_book_page(response.text)
 
-    title = title_tag.text.split(':')[0].strip() if title_tag else f"Книга_{book_id}"
-    genres = [genre.text.strip() for genre in genre_tags] if genre_tags else []
-
-    return title, genres
+    return book_data
 
 
 def main():
     for book_id in range(5, 11):
         try:
 
-            title, genres = parse_book_page(book_id)
+            book_data = collect_book_data(book_id)
+            title, genres, comments, cover_url = (
+                book_data['title'],
+                book_data['genres'],
+                book_data['comments'],
+                book_data['cover_url']
+            )
+
             download_txt(book_id, title)
-            comments = get_comments(book_id)
-            cover_url = get_book_cover_url(book_id)
 
             print(f"\nЗаголовок: {title}")
+            print(f"Автор: {book_data['author']}")
             print(f"Жанр: {genres if genres else '[]'}")
             print(f"Ссылка на картинку: {cover_url if cover_url else 'Картинка отсутствует'}")
             print("Комментарии:")
