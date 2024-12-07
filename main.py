@@ -1,3 +1,4 @@
+import argparse
 import os
 from urllib.parse import urljoin, urlsplit, unquote
 
@@ -5,6 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from requests.exceptions import HTTPError
+
+BASE_URL = "https://tululu.org"
 
 
 def check_for_redirect(response):
@@ -29,7 +32,7 @@ def get_comments(soup):
 
 
 def download_txt(book_id, title, folder='books'):
-    url = f"https://tululu.org/txt.php?id={book_id}"
+    url = f"{BASE_URL}/txt.php?id={book_id}"
     os.makedirs(folder, exist_ok=True)
 
     safe_filename = f"{book_id}. {sanitize_filename(title)}.txt"
@@ -60,7 +63,7 @@ def download_image(url, folder='images'):
 def get_book_cover_url(soup):
     img_tag = soup.find('div', class_='bookimage').find('img')
     if img_tag and img_tag.get('src'):
-        return urljoin("https://tululu.org", img_tag['src'])
+        return urljoin(BASE_URL, img_tag['src'])
     return None
 
 
@@ -87,7 +90,7 @@ def parse_book_page(html_content):
 
 
 def collect_book_data(book_id):
-    url = f"https://tululu.org/b{book_id}/"
+    url = f"{BASE_URL}/b{book_id}/"
     response = fetch_page(url)
 
     book_data = parse_book_page(response.text)
@@ -96,9 +99,14 @@ def collect_book_data(book_id):
 
 
 def main():
-    for book_id in range(5, 11):
-        try:
+    parser = argparse.ArgumentParser(description="Скачать книги с сайта tululu.org.")
+    parser.add_argument("start_id", type=int, help="ID книги, с которой начать скачивание.")
+    parser.add_argument("end_id", type=int, help="ID книги, на которой закончить скачивание.")
 
+    args = parser.parse_args()
+
+    for book_id in range(args.start_id, args.end_id + 1):
+        try:
             book_data = collect_book_data(book_id)
             title, genres, comments, cover_url = (
                 book_data['title'],
