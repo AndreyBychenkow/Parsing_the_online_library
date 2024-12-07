@@ -12,14 +12,18 @@ BASE_URL = "https://tululu.org"
 
 def check_for_redirect(response):
     if response.history:
-        raise HTTPError("Редирект на главную страницу.")
+        raise HTTPError(f"Редирект на главную страницу. URL: {response.url}")
 
 
 def fetch_page(url):
-    response = requests.get(url)
-    response.raise_for_status()
-    check_for_redirect(response)
-    return response
+    with requests.get(url) as response:
+        response.raise_for_status()
+        check_for_redirect(response)
+        return response
+
+
+def create_directory(folder):
+    os.makedirs(folder, exist_ok=True)
 
 
 def get_comments(soup):
@@ -33,7 +37,7 @@ def get_comments(soup):
 
 def download_txt(book_id, title, folder='books'):
     url = f"{BASE_URL}/txt.php?id={book_id}"
-    os.makedirs(folder, exist_ok=True)
+    create_directory(folder)
 
     safe_filename = f"{book_id}. {sanitize_filename(title)}.txt"
     filepath = os.path.join(folder, safe_filename)
@@ -48,8 +52,7 @@ def download_txt(book_id, title, folder='books'):
 
 def download_image(url, folder='images'):
     response = fetch_page(url)
-
-    os.makedirs(folder, exist_ok=True)
+    create_directory(folder)
 
     filename = unquote(urlsplit(url).path.split('/')[-1])
     filepath = os.path.join(folder, filename)
@@ -78,7 +81,7 @@ def parse_book_page(html_content):
     genres = [genre.text.strip() for genre in genre_tags] if genre_tags else []
     author = author_tags.split('::')[-1].strip() if author_tags else "Автор неизвестен"
 
-    book_data = {
+    return {
         'title': title,
         'author': author,
         'genres': genres,
@@ -86,58 +89,52 @@ def parse_book_page(html_content):
         'comments': get_comments(soup)
     }
 
-    return book_data
-
 
 def collect_book_data(book_id):
     url = f"{BASE_URL}/b{book_id}/"
     response = fetch_page(url)
-
-    book_data = parse_book_page(response.text)
-
-    return book_data
+    return parse_book_page(response.text)
 
 
-def main():
+def display_book_info(book_data):
+    book_info = {
+        "\nЗаголовок": book_data['title'],
+        "Автор": book_data['author'],
+        "Жанр": str(book_data['genres']) if book_data['genres'] else "[]",
+        "Ссылка на обложку": book_data['cover_url'] or "Обложка отсутствует",
+        "Комментарии": "\n".join(book_data['comments']) if book_data['comments'] else "Нет комментариев",
+    }
+    print("\n".join(f"{key}: {value}" for key, value in book_info.items()), "-" * 100, sep="\n")
+
+
+def parse_arguments():
     parser = argparse.ArgumentParser(description="Скачать книги с сайта tululu.org.")
     parser.add_argument("start_id", type=int, help="ID книги, с которой начать скачивание.")
     parser.add_argument("end_id", type=int, help="ID книги, на которой закончить скачивание.")
+    parser.add_argument("--no-txt", action="store_false", dest="download_txt", help="Не скачивать текст книги.")
+    parser.add_argument("--no-cover", action="store_false", dest="download_cover", help="Не скачивать обложку книги.")
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
 
     for book_id in range(args.start_id, args.end_id + 1):
         try:
             book_data = collect_book_data(book_id)
-            title, genres, comments, cover_url = (
-                book_data['title'],
-                book_data['genres'],
-                book_data['comments'],
-                book_data['cover_url']
-            )
+            display_book_info(book_data)
 
-            download_txt(book_id, title)
+            if args.download_txt:
+                download_txt(book_id, book_data['title'])
 
-            print(f"\nЗаголовок: {title}")
-            print(f"Автор: {book_data['author']}")
-            print(f"Жанр: {genres if genres else '[]'}")
-            print(f"Ссылка на картинку: {cover_url if cover_url else 'Картинка отсутствует'}")
-            print("Комментарии:")
-            if comments:
-                print("\n".join(f"- {comment}" for comment in comments))
-            else:
-                print("Данная книга не имеет комментариев.")
-            print("-" * 50)
+            if args.download_cover and book_data['cover_url']:
+                download_image(book_data['cover_url'])
 
-            if cover_url:
-                download_image(cover_url)
-
-        except requests.HTTPError as e:
-            print(f"Ошибка: Книга с id {book_id} не доступна. {e}")
-            print("-" * 50)
-        except OSError:
-            print(f"Книга с id {book_id}. Ошибка записи файла\n")
-
-    print("Все доступные книги обработаны.")
+        except HTTPError as e:
+            print(f"Ошибка обработки книги ID {book_id}: {e}\n{'-' * 100}")
+        except OSError as e:
+            print(f"Ошибка записи файла для книги ID {book_id}: {e}\n{'-' * 100}")
 
 
 if __name__ == "__main__":
