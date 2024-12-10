@@ -15,8 +15,8 @@ def check_for_redirect(response):
         raise HTTPError(f"Редирект на главную страницу. URL: {response.url}")
 
 
-def fetch_page(url):
-    response = requests.get(url)
+def fetch_page(url, params=None):
+    response = requests.get(url, params=params)
     response.raise_for_status()
     check_for_redirect(response)
     return response
@@ -32,13 +32,14 @@ def get_comments(soup):
 
 
 def download_txt(book_id, title, folder='books'):
-    url = f"{BASE_URL}/txt.php?id={book_id}"
+    url = f"{BASE_URL}/txt.php"
+    params = {"id": book_id}
     os.makedirs(folder, exist_ok=True)
 
     safe_filename = f"{book_id}. {sanitize_filename(title)}.txt"
     filepath = os.path.join(folder, safe_filename)
 
-    response = fetch_page(url)
+    response = fetch_page(url, params=params)
 
     with open(filepath, 'wb') as file:
         file.write(response.content)
@@ -66,7 +67,7 @@ def get_book_cover_url(soup, page_url):
     return None
 
 
-def parse_book_page(html_content):
+def parse_book_page(html_content, page_url):
     soup = BeautifulSoup(html_content, 'lxml')
 
     title_tag = soup.find('div', id='content').find('h1')
@@ -81,7 +82,7 @@ def parse_book_page(html_content):
         'title': title,
         'author': author,
         'genres': genres,
-        'cover_url': get_book_cover_url(soup),
+        'cover_url': get_book_cover_url(soup, page_url),
         'comments': get_comments(soup)
     }
 
@@ -114,7 +115,7 @@ def main():
         try:
             url = f"{BASE_URL}/b{book_id}/"
             response = fetch_page(url)
-            book_details = parse_book_page(response.text)
+            book_details = parse_book_page(response.text, url)
 
             display_book_info(book_details)
 
