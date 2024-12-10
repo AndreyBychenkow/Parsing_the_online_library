@@ -16,10 +16,10 @@ def check_for_redirect(response):
 
 
 def fetch_page(url):
-    with requests.get(url) as response:
-        response.raise_for_status()
-        check_for_redirect(response)
-        return response
+    response = requests.get(url)
+    response.raise_for_status()
+    check_for_redirect(response)
+    return response
 
 
 def get_comments(soup):
@@ -59,10 +59,10 @@ def download_image(url, folder='images'):
     return filepath
 
 
-def get_book_cover_url(soup):
+def get_book_cover_url(soup, page_url):
     img_tag = soup.find('div', class_='bookimage').find('img')
     if img_tag and img_tag.get('src'):
-        return urljoin(BASE_URL, img_tag['src'])
+        return urljoin(page_url, img_tag['src'])
     return None
 
 
