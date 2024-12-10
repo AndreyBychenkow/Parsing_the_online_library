@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 from urllib.parse import urljoin, urlsplit, unquote
 
 import requests
@@ -112,23 +113,36 @@ def main():
     args = parse_arguments()
 
     for book_id in range(args.start_id, args.end_id + 1):
-        try:
-            url = f"{BASE_URL}/b{book_id}/"
-            response = fetch_page(url)
-            book_details = parse_book_page(response.text, url)
+        url = f"{BASE_URL}/b{book_id}/"
+        retries = 5
+        delay = 3
 
-            display_book_info(book_details)
+        for attempt in range(1, retries + 1):
+            try:
+                response = fetch_page(url)
+                book_details = parse_book_page(response.text, url)
+                display_book_info(book_details)
 
-            if args.download_txt:
-                download_txt(book_id, book_details['title'])
+                if args.download_txt:
+                    download_txt(book_id, book_details['title'])
 
-            if args.download_cover and book_details['cover_url']:
-                download_image(book_details['cover_url'])
+                if args.download_cover and book_details['cover_url']:
+                    download_image(book_details['cover_url'])
 
-        except HTTPError as e:
-            print(f"Ошибка обработки книги ID {book_id}: {e}\n{'-' * 100}")
-        except OSError as e:
-            print(f"Ошибка записи файла для книги ID {book_id}: {e}\n{'-' * 100}")
+                break
+
+            except requests.exceptions.ConnectionError as e:
+                print(f"Попытка {attempt}/{retries}: Ошибка подключения - {e}")
+                if attempt < retries:
+                    time.sleep(delay)
+                else:
+                    print(f"Пропускаем книгу ID {book_id} из-за сетевых проблем.\n{'-' * 100}")
+            except HTTPError as e:
+                print(f"Ошибка обработки книги ID {book_id}: {e}\n{'-' * 100}")
+                break
+            except OSError as e:
+                print(f"Ошибка записи файла для книги ID {book_id}: {e}\n{'-' * 100}")
+                break
 
 
 if __name__ == "__main__":
