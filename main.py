@@ -22,10 +22,6 @@ def fetch_page(url):
         return response
 
 
-def create_directory(folder):
-    os.makedirs(folder, exist_ok=True)
-
-
 def get_comments(soup):
     comments_section = soup.find_all('div', class_='texts')
     return [
@@ -37,7 +33,7 @@ def get_comments(soup):
 
 def download_txt(book_id, title, folder='books'):
     url = f"{BASE_URL}/txt.php?id={book_id}"
-    create_directory(folder)
+    os.makedirs(folder, exist_ok=True)
 
     safe_filename = f"{book_id}. {sanitize_filename(title)}.txt"
     filepath = os.path.join(folder, safe_filename)
@@ -52,7 +48,7 @@ def download_txt(book_id, title, folder='books'):
 
 def download_image(url, folder='images'):
     response = fetch_page(url)
-    create_directory(folder)
+    os.makedirs(folder, exist_ok=True)
 
     filename = unquote(urlsplit(url).path.split('/')[-1])
     filepath = os.path.join(folder, filename)
@@ -90,19 +86,13 @@ def parse_book_page(html_content):
     }
 
 
-def collect_book_data(book_id):
-    url = f"{BASE_URL}/b{book_id}/"
-    response = fetch_page(url)
-    return parse_book_page(response.text)
-
-
-def display_book_info(book_data):
+def display_book_info(book_details):
     book_info = {
-        "\nЗаголовок": book_data['title'],
-        "Автор": book_data['author'],
-        "Жанр": str(book_data['genres']) if book_data['genres'] else "[]",
-        "Ссылка на обложку": book_data['cover_url'] or "Обложка отсутствует",
-        "Комментарии": "\n".join(book_data['comments']) if book_data['comments'] else "Нет комментариев",
+        "\nЗаголовок": book_details['title'],
+        "Автор": book_details['author'],
+        "Жанр": str(book_details['genres']) if book_details['genres'] else "[]",
+        "Ссылка на обложку": book_details['cover_url'] or "Обложка отсутствует",
+        "Комментарии": "\n".join(book_details['comments']) if book_details['comments'] else "Нет комментариев",
     }
     print("\n".join(f"{key}: {value}" for key, value in book_info.items()), "-" * 100, sep="\n")
 
@@ -122,14 +112,17 @@ def main():
 
     for book_id in range(args.start_id, args.end_id + 1):
         try:
-            book_data = collect_book_data(book_id)
-            display_book_info(book_data)
+            url = f"{BASE_URL}/b{book_id}/"
+            response = fetch_page(url)
+            book_details = parse_book_page(response.text)
+
+            display_book_info(book_details)
 
             if args.download_txt:
-                download_txt(book_id, book_data['title'])
+                download_txt(book_id, book_details['title'])
 
-            if args.download_cover and book_data['cover_url']:
-                download_image(book_data['cover_url'])
+            if args.download_cover and book_details['cover_url']:
+                download_image(book_details['cover_url'])
 
         except HTTPError as e:
             print(f"Ошибка обработки книги ID {book_id}: {e}\n{'-' * 100}")
