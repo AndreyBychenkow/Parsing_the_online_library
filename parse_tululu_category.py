@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import time
 from urllib.parse import urljoin
 
@@ -54,10 +55,22 @@ def main():
                         help="Номер начальной страницы для скачивания книг.")
     parser.add_argument("--end_page", type=int, default=None,
                         help="Номер конечной страницы для скачивания книг. Если не указан, скачаются с начальной страницы.")
+    parser.add_argument("--dest_folder", type=str, default="downloads",
+                        help="Путь к каталогу для сохранения книг, изображений и JSON.")
+    parser.add_argument("--skip_imgs", action="store_true",
+                        help="Не скачивать изображения.")
+    parser.add_argument("--skip_txt", action="store_true",
+                        help="Не скачивать текстовые файлы.")
 
     args = parser.parse_args()
     start_page = args.start_page
     end_page = args.end_page if args.end_page else start_page
+    dest_folder = args.dest_folder
+    skip_imgs = args.skip_imgs
+    skip_txt = args.skip_txt
+
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
 
     all_links = get_all_book_links(start_page, end_page)
     print(f"Найдено {len(all_links)} ссылок на книги.")
@@ -73,13 +86,14 @@ def main():
                 response = fetch_page(url)
                 book_details = parse_book_page(response.text, url)
 
-                download_txt(book_details['id'], book_details['title'])
+                if not skip_txt:
+                    download_txt(book_details['id'], book_details['title'], dest_folder)
 
-                if book_details['cover_url']:
-                    download_image(book_details['cover_url'])
+                if not skip_imgs and book_details['cover_url']:
+                    download_image(book_details['cover_url'], dest_folder)
 
                 books_data.append(book_details)
-                save_books_to_json(books_data)
+                save_books_to_json(books_data, os.path.join(dest_folder, 'books.json'))
 
                 break
             except (ConnectionError, Timeout):
