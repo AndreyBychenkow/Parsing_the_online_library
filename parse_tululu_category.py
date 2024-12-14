@@ -26,13 +26,13 @@ def get_book_links_from_page(page_url):
     response = fetch_page(page_url)
     soup = BeautifulSoup(response.text, 'lxml')
 
-    book_cards = soup.find_all('table', class_='d_book')
+    book_cards = soup.select('table.d_book')
     if not book_cards:
         raise ValueError("Книги не найдены на странице.")
 
     book_links = [
-        urljoin(BASE_URL, card.find('a')['href'])
-        for card in book_cards if card.find('a') and card.find('a').get('href')
+        urljoin(BASE_URL, card.select_one('a')['href'])
+        for card in book_cards if card.select_one('a') and card.select_one('a').get('href')
     ]
     return book_links
 
@@ -48,7 +48,6 @@ def get_all_book_links():
 
 
 def main():
-    global response
     all_links = get_all_book_links()
     print(f"Найдено {len(all_links)} ссылок на книги.")
 
