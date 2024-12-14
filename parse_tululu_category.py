@@ -1,3 +1,4 @@
+import argparse
 import json
 import time
 from urllib.parse import urljoin
@@ -14,7 +15,6 @@ from tululu import (
 
 BASE_URL = "https://tululu.org"
 CATEGORY_URL = f"{BASE_URL}/l55/"
-NUM_PAGES = 1
 
 
 def save_books_to_json(books, filename='books.json'):
@@ -37,9 +37,9 @@ def get_book_links_from_page(page_url):
     return book_links
 
 
-def get_all_book_links():
+def get_all_book_links(start_page, end_page):
     all_links = []
-    for page_number in range(1, NUM_PAGES + 1):
+    for page_number in range(start_page, end_page + 1):
         page_url = f"{CATEGORY_URL}{page_number}/"
         print(f"Парсим страницу: {page_url}")
         links = get_book_links_from_page(page_url)
@@ -48,7 +48,18 @@ def get_all_book_links():
 
 
 def main():
-    all_links = get_all_book_links()
+    parser = argparse.ArgumentParser(description="Скачивание книг с сайта tululu.org")
+
+    parser.add_argument("--start_page", type=int, required=True,
+                        help="Номер начальной страницы для скачивания книг.")
+    parser.add_argument("--end_page", type=int, default=None,
+                        help="Номер конечной страницы для скачивания книг. Если не указан, скачаются с начальной страницы.")
+
+    args = parser.parse_args()
+    start_page = args.start_page
+    end_page = args.end_page if args.end_page else start_page
+
+    all_links = get_all_book_links(start_page, end_page)
     print(f"Найдено {len(all_links)} ссылок на книги.")
 
     books_data = []
