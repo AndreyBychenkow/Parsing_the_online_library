@@ -24,12 +24,8 @@ def fetch_page(url, params=None):
 
 
 def get_comments(soup):
-    comments_section = soup.find_all('div', class_='texts')
-    return [
-        comment_div.find('span').text.strip()
-        for comment_div in comments_section
-        if comment_div.find('span')
-    ]
+    comments_section = soup.select('div.texts span')
+    return [comment.text.strip() for comment in comments_section]
 
 
 def download_txt(book_id, title, folder='books'):
@@ -62,7 +58,7 @@ def download_image(url, folder='images'):
 
 
 def get_book_cover_url(soup, page_url):
-    img_tag = soup.find('div', class_='bookimage').find('img')
+    img_tag = soup.select_one('div.bookimage img')
     if img_tag and img_tag.get('src'):
         return urljoin(page_url, img_tag['src'])
     return None
@@ -71,20 +67,23 @@ def get_book_cover_url(soup, page_url):
 def parse_book_page(html_content, page_url):
     soup = BeautifulSoup(html_content, 'lxml')
 
-    title_tag = soup.find('div', id='content').find('h1')
-    genre_tags = soup.find('span', class_='d_book').find_all('a')
-    author_tags = soup.find('div', id='content').find('h1', title='').text
+    title_tag = soup.select_one('div#content h1')
+    genres = soup.select('span.d_book a')
+    author_tag = soup.select_one('div#content h1')
 
     title = title_tag.text.split(':')[0].strip() if title_tag else "Неизвестный заголовок"
-    genres = [genre.text.strip() for genre in genre_tags] if genre_tags else []
-    author = author_tags.split('::')[-1].strip() if author_tags else "Автор неизвестен"
+    genres_list = [genre.text.strip() for genre in genres] if genres else []
+    author = author_tag.text.split('::')[-1].strip() if author_tag else "Автор неизвестен"
+
+    book_id = page_url.split('/')[-2][1:]
 
     return {
         'title': title,
+        'id': book_id,
         'author': author,
-        'genres': genres,
+        'genres': genres_list,
         'cover_url': get_book_cover_url(soup, page_url),
-        'comments': get_comments(soup)
+        'comments': get_comments(soup),
     }
 
 
